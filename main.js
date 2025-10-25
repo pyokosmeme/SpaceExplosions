@@ -4,9 +4,10 @@ let threeModulePromise;
 async function waitForLibraries() {
   const required = ['React', 'ReactDOM', 'Babel'];
   const start = Date.now();
+  const timeout = 30000;
   while (required.some((name) => typeof window[name] === 'undefined')) {
-    if (Date.now() - start > 10000) {
-      throw new Error('Timed out while waiting for external libraries to load.');
+    if (Date.now() - start > timeout) {
+      throw new Error('Timed out after 30s while waiting for external libraries (React, ReactDOM, Babel).');
     }
     await new Promise((resolve) => setTimeout(resolve, 30));
   }
