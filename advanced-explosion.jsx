@@ -170,6 +170,7 @@ export default function AdvancedExplosionSimulator() {
                   mesh,
                   initialPos: new THREE.Vector3(posX, posY, posZ),
                   mass: calculatedMass,
+                  velocity: new THREE.Vector3(0, 0, 0),
                 });
               }
             }
@@ -266,6 +267,7 @@ export default function AdvancedExplosionSimulator() {
                 mesh,
                 initialPos: new THREE.Vector3(centroidX, centroidY, centroidZ),
                 mass: calculatedMass,
+                velocity: new THREE.Vector3(0, 0, 0),
               });
             }
           }
@@ -359,6 +361,7 @@ export default function AdvancedExplosionSimulator() {
                 mesh,
                 initialPos: new THREE.Vector3(posX, posY, posZ),
                 mass: calculatedMass,
+                velocity: new THREE.Vector3(0, 0, 0),
               });
             }
           }
@@ -458,6 +461,7 @@ export default function AdvancedExplosionSimulator() {
                 mesh,
                 initialPos: new THREE.Vector3(posX, posY, posZ),
                 mass: calculatedMass,
+                velocity: new THREE.Vector3(0, 0, 0),
               });
             }
           }
@@ -550,6 +554,7 @@ export default function AdvancedExplosionSimulator() {
                 mesh,
                 initialPos: new THREE.Vector3(centerX, centerY, centerZ),
                 mass: calculatedMass,
+                velocity: new THREE.Vector3(0, 0, 0),
               });
             }
           }
@@ -760,7 +765,9 @@ export default function AdvancedExplosionSimulator() {
           }
           color.lerp(whiteHotColor, 0.25);
           color.multiplyScalar(1.15);
-          color.clampScalar(0, 1);
+          color.r = Math.min(1, Math.max(0, color.r));
+          color.g = Math.min(1, Math.max(0, color.g));
+          color.b = Math.min(1, Math.max(0, color.b));
           gasColors.push(color.r, color.g, color.b);
           
           // Gas velocities from Maxwell-Boltzmann
