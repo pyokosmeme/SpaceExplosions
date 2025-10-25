@@ -1085,11 +1085,6 @@ export default function AdvancedExplosionSimulator() {
       // Reset center of mass
       centerOfMass.set(0, 0, 0);
       
-      // If camera lock is disabled, allow camera to follow again
-      if (!lockCameraOnExplosion) {
-        hasManuallyMovedCamera = false;
-      }
-      
       // Keep camera position and CoM velocity as they are
       setIsExploded(false);
     };
@@ -1213,8 +1208,9 @@ export default function AdvancedExplosionSimulator() {
         {isExploded && (
           <div className="mb-3 p-2 bg-blue-900 bg-opacity-50 rounded border border-blue-500">
             <p className="text-xs font-bold text-blue-300">DEBUG INFO:</p>
-            <p className="text-xs">CoM Velocity Magnitude: {Math.sqrt(comVelocity.x**2 + comVelocity.y**2 + comVelocity.z**2).toFixed(1)} m/s</p>
-            <p className="text-xs">Set: ({comVelocity.x}, {comVelocity.y}, {comVelocity.z})</p>
+            <p className="text-xs">Reference Frame: {lockCameraOnExplosion ? 'CoM' : 'Lab'}</p>
+            <p className="text-xs">CoM Velocity: {comVelocity.x} m/s (X-axis)</p>
+            <p className="text-xs">Boost Applied: {lockCameraOnExplosion ? 'No' : 'Yes'}</p>
           </div>
         )}
         
@@ -1274,10 +1270,10 @@ export default function AdvancedExplosionSimulator() {
               onChange={(e) => setLockCameraOnExplosion(e.target.checked)}
               className="w-4 h-4"
             />
-            <span className="font-semibold">Lock Camera on Explosion</span>
+            <span className="font-semibold">CoM Reference Frame</span>
           </label>
           <p className="text-xs text-gray-400 mt-1">
-            {lockCameraOnExplosion ? '📷 Camera freezes - watch CoM drift across grid' : '🎥 Camera follows CoM (default)'}
+            {lockCameraOnExplosion ? '📍 Explosion in CoM frame (no boost, symmetrical)' : '🚀 Lab frame with CoM boost (see motion)'}
           </p>
         </div>
 
@@ -1423,10 +1419,10 @@ export default function AdvancedExplosionSimulator() {
           <p>🖱️ <strong>Drag</strong>: Rotate camera around CoM</p>
           <p>🖱️ <strong>Mouse wheel</strong>: Zoom in/out</p>
           <p>📱 <strong>Pinch</strong>: Zoom on mobile</p>
-          <p>📷 <strong>Lock Camera</strong>: Freeze camera to see CoM motion</p>
+          <p>📍 <strong>CoM Frame</strong>: Toggle between CoM/Lab reference frames</p>
           <p>🔄 <strong>Reset</strong>: Restore object (keeps camera & CoM)</p>
           <p>📷 <strong>Camera</strong>: Reset camera to default view</p>
-          <p>🎯 <strong>CoM</strong>: Clear CoM velocity vector</p>
+          <p>🎯 <strong>CoM</strong>: Clear CoM velocity</p>
           <p>🔴 <strong>Red arrow</strong>: CoM velocity vector</p>
           <p>✅ <strong>Global momentum conserved</strong> (chunks + gas)</p>
           <p>📊 <strong>Maxwell-Boltzmann PDF</strong> for all particles</p>
