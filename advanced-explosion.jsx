@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { computeSimulationDelta, resolveTimeStep } from './simulation-utils.js';
 
 const PHYS_SCALE = 14.43; // m/s per current sim velocity unit
 
@@ -1020,7 +1021,16 @@ export default function AdvancedExplosionSimulator() {
       requestAnimationFrame(animate);
 
       const rawDelta = clock.getDelta();
-      const simulationDelta = isPlayingRef.current ? rawDelta * timeScaleRef.current : 0;
+      const simulationDelta = computeSimulationDelta(
+        rawDelta,
+        timeScaleRef.current,
+        isPlayingRef.current
+      );
+      const lerpDelta = resolveTimeStep(
+        isPlayingRef.current,
+        simulationDelta,
+        rawDelta
+      );
 
       // Update center of mass
       if (explosionChunks.length > 0) {
@@ -1081,14 +1091,14 @@ export default function AdvancedExplosionSimulator() {
         !isMouseDragging
       ) {
         const targetPos = centerOfMass.clone().add(new THREE.Vector3(0, 5, cameraDistance));
-        camera.position.lerp(targetPos, rawDelta * 2);
+        camera.position.lerp(targetPos, lerpDelta * 2);
         camera.lookAt(centerOfMass);
       } else {
         // In lab frame or after manual input, keep camera in world coordinates.
       }
 
       // Smooth zoom interpolation
-      cameraDistance += (targetCameraDistance - cameraDistance) * rawDelta * 8;
+      cameraDistance += (targetCameraDistance - cameraDistance) * lerpDelta * 8;
       
       // Update camera distance while maintaining direction (only if manually moved)
       if (hasManuallyMovedCamera && Math.abs(cameraDistance - targetCameraDistance) > 0.01) {
