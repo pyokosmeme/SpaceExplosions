@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 const PHYS_SCALE = 14.43; // m/s per current sim velocity unit
+const MIN_CAMERA_DISTANCE = 5;
+const MAX_CAMERA_DISTANCE = 400;
 
 export default function AdvancedExplosionSimulator() {
   const mountRef = useRef(null);
@@ -14,6 +16,19 @@ export default function AdvancedExplosionSimulator() {
   const [enableGas, setEnableGas] = useState(true);
   const [frameIsCoM, setFrameIsCoM] = useState(true);
   const [followCameraStatus, setFollowCameraStatus] = useState(true);
+  const [timeScale, setTimeScale] = useState(1);
+  const [isPlaying, setIsPlaying] = useState(true);
+
+  const timeScaleRef = useRef(timeScale);
+  const isPlayingRef = useRef(isPlaying);
+
+  useEffect(() => {
+    timeScaleRef.current = timeScale;
+  }, [timeScale]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   // Sync React comVelocity state with Three.js scene
   useEffect(() => {
@@ -715,7 +730,8 @@ export default function AdvancedExplosionSimulator() {
       if (enableGas) {
         gasCount = 10000;
         const gasTemperature = temperature * 2; // Gas is hotter
-        
+        const whiteHotColor = new THREE.Color(0xffffff);
+
         for (let i = 0; i < gasCount; i++) {
           // Spawn gas from random chunk surface instead of origin
           const randomChunkIdx = Math.floor((useRandomSeed ? rng.next() : Math.random()) * explosionChunks.length);
@@ -732,17 +748,23 @@ export default function AdvancedExplosionSimulator() {
             chunkPos.y + jitterY,
             chunkPos.z + jitterZ
           );
-          
+
           // Ultra-bright colors
           const color = new THREE.Color();
-          const temp = (useRandomSeed ? rng.next() : Math.random());
+          const temp = useRandomSeed ? rng.next() : Math.random();
+          const brightnessRoll = useRandomSeed ? rng.next() : Math.random();
           if (temp < 0.3) {
-            color.setHSL(0.08, 1, 0.75 + (useRandomSeed ? rng.next() : Math.random()) * 0.25);
+            color.setHSL(0.08, 1, 0.88 + brightnessRoll * 0.12);
           } else if (temp < 0.6) {
-            color.setHSL(0.14, 1, 0.85 + (useRandomSeed ? rng.next() : Math.random()) * 0.15);
+            color.setHSL(0.12, 1, 0.9 + brightnessRoll * 0.1);
           } else {
-            color.setHSL(0, 0, 0.97 + (useRandomSeed ? rng.next() : Math.random()) * 0.03);
+            color.setHSL(0.02, 0.3, 0.98 + brightnessRoll * 0.02);
           }
+          color.lerp(whiteHotColor, 0.25);
+          color.multiplyScalar(1.15);
+          color.r = THREE.MathUtils.clamp(color.r, 0, 1);
+          color.g = THREE.MathUtils.clamp(color.g, 0, 1);
+          color.b = THREE.MathUtils.clamp(color.b, 0, 1);
           gasColors.push(color.r, color.g, color.b);
           
           // Gas velocities from Maxwell-Boltzmann
@@ -815,7 +837,7 @@ export default function AdvancedExplosionSimulator() {
         gasGeometry.setAttribute('color', new THREE.Float32BufferAttribute(gasColors, 3));
         
         const gasMaterial = new THREE.PointsMaterial({
-          size: 0.35,
+          size: 0.45,
           vertexColors: true,
           transparent: true,
           opacity: 1.0,
@@ -894,7 +916,7 @@ export default function AdvancedExplosionSimulator() {
       const delta = e.deltaY;
       
       targetCameraDistance += delta * zoomSpeed * targetCameraDistance;
-      targetCameraDistance = Math.max(5, Math.min(200, targetCameraDistance));
+      targetCameraDistance = Math.max(MIN_CAMERA_DISTANCE, Math.min(MAX_CAMERA_DISTANCE, targetCameraDistance));
     };
 
     // Helper function to get distance between two touch points
@@ -929,7 +951,10 @@ export default function AdvancedExplosionSimulator() {
         const currentDistance = getTouchDistance(e.touches);
         if (touchStartDistance > 0) {
           const zoomFactor = currentDistance / touchStartDistance;
-          targetCameraDistance = Math.max(5, Math.min(200, cameraDistance / zoomFactor));
+          targetCameraDistance = Math.max(
+            MIN_CAMERA_DISTANCE,
+            Math.min(MAX_CAMERA_DISTANCE, cameraDistance / zoomFactor)
+          );
         }
         touchStartDistance = currentDistance;
       } else if (e.touches.length === 1 && isMouseDragging) {
@@ -994,7 +1019,8 @@ export default function AdvancedExplosionSimulator() {
     const animate = () => {
       requestAnimationFrame(animate);
 
-      const delta = clock.getDelta();
+      const rawDelta = clock.getDelta();
+      const simulationDelta = isPlayingRef.current ? rawDelta * timeScaleRef.current : 0;
 
       // Update center of mass
       if (explosionChunks.length > 0) {
@@ -1009,23 +1035,23 @@ export default function AdvancedExplosionSimulator() {
         // Update chunks
         explosionChunks.forEach(chunk => {
           // Update position (constant velocity, no forces)
-          chunk.mesh.position.add(chunk.velocity.clone().multiplyScalar(delta));
-          
+          chunk.mesh.position.add(chunk.velocity.clone().multiplyScalar(simulationDelta));
+
           // Add rotation for visual effect
-          chunk.mesh.rotation.x += chunk.velocity.length() * delta * 0.1;
-          chunk.mesh.rotation.y += chunk.velocity.length() * delta * 0.15;
+          chunk.mesh.rotation.x += chunk.velocity.length() * simulationDelta * 0.1;
+          chunk.mesh.rotation.y += chunk.velocity.length() * simulationDelta * 0.15;
         });
         
         // Update gas particles
         if (gasParticles) {
-          gasParticles.userData.age += delta;
+          gasParticles.userData.age += simulationDelta;
           const positions = gasParticles.geometry.attributes.position.array;
           const velocities = gasParticles.userData.velocities;
-          
+
           for (let i = 0; i < positions.length; i += 3) {
-            positions[i] += velocities[i] * delta * 10;
-            positions[i + 1] += velocities[i + 1] * delta * 10;
-            positions[i + 2] += velocities[i + 2] * delta * 10;
+            positions[i] += velocities[i] * simulationDelta * 10;
+            positions[i + 1] += velocities[i + 1] * simulationDelta * 10;
+            positions[i + 2] += velocities[i + 2] * simulationDelta * 10;
           }
           
           gasParticles.geometry.attributes.position.needsUpdate = true;
@@ -1033,7 +1059,7 @@ export default function AdvancedExplosionSimulator() {
           // Fade out gas over time
           const gasProgress = gasParticles.userData.age / gasParticles.userData.maxAge;
           gasParticles.material.opacity = Math.max(0, 1.0 * (1 - gasProgress)); // Start at 1.0
-          gasParticles.material.size = 0.35 * (1 + gasProgress * 2); // Expand
+          gasParticles.material.size = 0.45 * (1 + gasProgress * 2); // Expand
           
           // Remove gas when fully faded
           if (gasProgress >= 1) {
@@ -1055,14 +1081,14 @@ export default function AdvancedExplosionSimulator() {
         !isMouseDragging
       ) {
         const targetPos = centerOfMass.clone().add(new THREE.Vector3(0, 5, cameraDistance));
-        camera.position.lerp(targetPos, delta * 2);
+        camera.position.lerp(targetPos, rawDelta * 2);
         camera.lookAt(centerOfMass);
       } else {
         // In lab frame or after manual input, keep camera in world coordinates.
       }
 
       // Smooth zoom interpolation
-      cameraDistance += (targetCameraDistance - cameraDistance) * delta * 8;
+      cameraDistance += (targetCameraDistance - cameraDistance) * rawDelta * 8;
       
       // Update camera distance while maintaining direction (only if manually moved)
       if (hasManuallyMovedCamera && Math.abs(cameraDistance - targetCameraDistance) > 0.01) {
@@ -1460,6 +1486,49 @@ export default function AdvancedExplosionSimulator() {
           <p>⚖️ <strong>Mass from geometry volume</strong> (realistic chunks)</p>
           <p>🎨 <strong>Color-coded pieces</strong> show pre-fractured structure</p>
           <p>🔥 <strong>Gas</strong>: 10k particles from surface, 2× faster</p>
+        </div>
+      </div>
+
+      {/* Time Controls */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-full max-w-xl px-4">
+        <div className="bg-gray-900/80 text-white px-4 py-3 rounded-lg shadow-lg backdrop-blur">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <button
+              onClick={() => setIsPlaying((prev) => !prev)}
+              className={`w-full md:w-32 px-4 py-2 rounded font-semibold transition-colors ${
+                isPlaying ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-green-500 hover:bg-green-400 text-black'
+              }`}
+            >
+              {isPlaying ? '⏸ Pause' : '▶️ Play'}
+            </button>
+
+            <div className="flex-1">
+              <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-400">
+                <span>Time Scale</span>
+                <span>{timeScale.toFixed(2)}×</span>
+              </div>
+              <input
+                type="range"
+                min="0.25"
+                max="3"
+                step="0.05"
+                value={timeScale}
+                onChange={(e) => setTimeScale(parseFloat(e.target.value))}
+                className="w-full"
+              />
+              <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+                <span>Slow</span>
+                <span>Fast</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setTimeScale(1)}
+              className="w-full md:w-24 px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 font-semibold"
+            >
+              Reset 1×
+            </button>
+          </div>
         </div>
       </div>
     </div>
