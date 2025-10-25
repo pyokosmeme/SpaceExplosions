@@ -1,5 +1,12 @@
 const assert = require('assert');
-const { computeSimulationDelta, resolveTimeStep } = require('../simulation-utils.js');
+const { clampTimeScale, computeSimulationDelta, resolveTimeStep } = require('../simulation-utils.js');
+
+// clampTimeScale should clamp to non-negative numbers and coerce NaN to 0
+(() => {
+  assert.strictEqual(clampTimeScale(1.5), 1.5);
+  assert.strictEqual(clampTimeScale(-2), 0);
+  assert.strictEqual(clampTimeScale(Number.NaN), 0);
+})();
 
 // Helper to compare floating point values with tolerance
 function approxEqual(actual, expected, tolerance = 1e-9) {

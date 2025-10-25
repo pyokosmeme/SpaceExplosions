@@ -24,6 +24,7 @@ function resolveTimeStep(isPlaying, simulationDelta, rawDelta) {
 }
 
 module.exports = {
+  clampTimeScale,
   computeSimulationDelta,
   resolveTimeStep,
 };

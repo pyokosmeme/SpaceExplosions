@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { computeSimulationDelta, resolveTimeStep } from './simulation-utils.js';
+import { clampTimeScale, computeSimulationDelta, resolveTimeStep } from './simulation-utils.js';
 
 const PHYS_SCALE = 14.43; // m/s per current sim velocity unit
 
@@ -28,6 +28,21 @@ export default function AdvancedExplosionSimulator() {
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+
+  const applyTimeScale = useCallback((value) => {
+    const numeric = Number(value);
+    const sanitized = clampTimeScale(Number.isFinite(numeric) ? numeric : 0);
+    timeScaleRef.current = sanitized;
+    setTimeScale(sanitized);
+  }, []);
+
+  const togglePlayback = useCallback(() => {
+    setIsPlaying((prev) => {
+      const next = !prev;
+      isPlayingRef.current = next;
+      return next;
+    });
+  }, []);
 
   // Sync React comVelocity state with Three.js scene
   useEffect(() => {
@@ -1504,7 +1519,7 @@ export default function AdvancedExplosionSimulator() {
         <div className="bg-gray-900/80 text-white px-4 py-3 rounded-lg shadow-lg backdrop-blur">
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <button
-              onClick={() => setIsPlaying((prev) => !prev)}
+              onClick={togglePlayback}
               className={`w-full md:w-32 px-4 py-2 rounded font-semibold transition-colors ${
                 isPlaying ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-green-500 hover:bg-green-400 text-black'
               }`}
@@ -1523,7 +1538,7 @@ export default function AdvancedExplosionSimulator() {
                 max="3"
                 step="0.05"
                 value={timeScale}
-                onChange={(e) => setTimeScale(parseFloat(e.target.value))}
+                onChange={(e) => applyTimeScale(e.target.value)}
                 className="w-full"
               />
               <div className="flex justify-between text-[10px] text-gray-500 mt-1">
@@ -1533,7 +1548,7 @@ export default function AdvancedExplosionSimulator() {
             </div>
 
             <button
-              onClick={() => setTimeScale(1)}
+              onClick={() => applyTimeScale(1)}
               className="w-full md:w-24 px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 font-semibold"
             >
               Reset 1×
