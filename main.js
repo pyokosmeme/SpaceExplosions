@@ -1,5 +1,8 @@
+const localModuleCache = new Map();
+let threeModulePromise;
+
 async function waitForLibraries() {
-  const required = ['React', 'ReactDOM', 'THREE', 'Babel'];
+  const required = ['React', 'ReactDOM', 'Babel'];
   const start = Date.now();
   while (required.some((name) => typeof window[name] === 'undefined')) {
     if (Date.now() - start > 10000) {
@@ -7,6 +10,51 @@ async function waitForLibraries() {
     }
     await new Promise((resolve) => setTimeout(resolve, 30));
   }
+}
+
+async function loadThreeModule() {
+  if (!threeModulePromise) {
+    threeModulePromise = import('https://unpkg.com/three@0.160.0/build/three.module.js?module')
+      .then((module) => {
+        const namespace = {};
+        for (const key of Object.keys(module)) {
+          namespace[key] = module[key];
+        }
+        if ('default' in module) {
+          namespace.default = module.default;
+        }
+        if (!('default' in namespace)) {
+          namespace.default = module;
+        }
+        if (typeof window !== 'undefined') {
+          window.THREE = namespace;
+        }
+        return namespace;
+      })
+      .catch((error) => {
+        threeModulePromise = undefined;
+        throw error;
+      });
+  }
+  return threeModulePromise;
+}
+
+async function loadCommonJSModule(path) {
+  if (localModuleCache.has(path)) {
+    return localModuleCache.get(path);
+  }
+
+  const response = await fetch(path);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch module ${path}: ${response.status} ${response.statusText}`);
+  }
+
+  const source = await response.text();
+  const module = { exports: {} };
+  const fn = new Function('module', 'exports', source);
+  fn(module, module.exports);
+  localModuleCache.set(path, module.exports);
+  return module.exports;
 }
 
 async function loadComponent() {
@@ -24,13 +72,20 @@ async function loadComponent() {
     sourceMaps: false,
   }).code;
 
+  const [three, simulationUtils] = await Promise.all([
+    loadThreeModule(),
+    loadCommonJSModule('./simulation-utils.js'),
+  ]);
+
   const module = { exports: {} };
   const require = (name) => {
     switch (name) {
       case 'react':
         return React;
       case 'three':
-        return THREE;
+        return three;
+      case './simulation-utils.js':
+        return simulationUtils;
       default:
         throw new Error(`Cannot resolve module: ${name}`);
     }
