@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
+const PHYS_SCALE = 14.43; // m/s per current sim velocity unit
+
 export default function AdvancedExplosionSimulator() {
   const mountRef = useRef(null);
   const [selectedShape, setSelectedShape] = useState('sphere');
@@ -10,7 +12,8 @@ export default function AdvancedExplosionSimulator() {
   const [randomSeed, setRandomSeed] = useState(12345);
   const [useRandomSeed, setUseRandomSeed] = useState(false);
   const [enableGas, setEnableGas] = useState(true);
-  const [lockCameraOnExplosion, setLockCameraOnExplosion] = useState(true);
+  const [frameIsCoM, setFrameIsCoM] = useState(true);
+  const [followCameraStatus, setFollowCameraStatus] = useState(true);
 
   // Sync React comVelocity state with Three.js scene
   useEffect(() => {
@@ -22,9 +25,9 @@ export default function AdvancedExplosionSimulator() {
   // Sync camera lock setting with Three.js
   useEffect(() => {
     if (window.simulatorControls?.setCameraLock) {
-      window.simulatorControls.setCameraLock(lockCameraOnExplosion);
+      window.simulatorControls.setCameraLock(frameIsCoM);
     }
-  }, [lockCameraOnExplosion]);
+  }, [frameIsCoM]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -557,7 +560,8 @@ export default function AdvancedExplosionSimulator() {
     let targetCameraDistance = 30;
     let touchStartDistance = 0;
     let hasManuallyMovedCamera = false;
-    let lockCameraOnExplosion = true;
+    let frameIsCoMSetting = frameIsCoM;
+    let followCOMCamera = frameIsCoM;
 
     // Create initial object
     function createObject(shapeType) {
@@ -662,6 +666,9 @@ export default function AdvancedExplosionSimulator() {
         rng.reset(randomSeed);
       }
 
+      followCOMCamera = frameIsCoMSetting;
+      setFollowCameraStatus(followCOMCamera && !hasManuallyMovedCamera);
+
       // Hide the solid object
       currentObject.visible = false;
       
@@ -687,12 +694,16 @@ export default function AdvancedExplosionSimulator() {
         const speed = maxwellBoltzmannSpeed(temperature);
         const theta = (useRandomSeed ? rng.next() : Math.random()) * Math.PI * 2;
         const phi = Math.acos(2 * (useRandomSeed ? rng.next() : Math.random()) - 1);
-        
+
         const vx = speed * Math.sin(phi) * Math.cos(theta);
         const vy = speed * Math.sin(phi) * Math.sin(theta);
         const vz = speed * Math.cos(phi);
-        
+
         chunkVelocities.push(new THREE.Vector3(vx, vy, vz));
+      }
+
+      for (let i = 0; i < chunkVelocities.length; i++) {
+        chunkVelocities[i].multiplyScalar(PHYS_SCALE);
       }
 
       // Generate gas if enabled
@@ -747,6 +758,10 @@ export default function AdvancedExplosionSimulator() {
         }
       }
 
+      for (let i = 0; i < gasVelocities.length; i++) {
+        gasVelocities[i].multiplyScalar(PHYS_SCALE);
+      }
+
       // GLOBAL MOMENTUM CORRECTION
       // Calculate total momentum from all particles (chunks + gas)
       let totalMomentum = new THREE.Vector3(0, 0, 0);
@@ -765,10 +780,10 @@ export default function AdvancedExplosionSimulator() {
       // Total system mass
       const totalSystemMass = totalMass + gasCount * gasParticleMass;
       
-      // Target momentum depends on lock setting:
-      // - Lock ON (checked): Stay in CoM frame, target momentum = 0
-      // - Lock OFF (unchecked): Lab frame, target momentum = CoM velocity × mass
-      const targetMomentum = lockCameraOnExplosion 
+      // Target momentum depends on selected frame:
+      // - CoM frame: Stay in CoM frame, target momentum = 0
+      // - Lab frame: CoM boosted, target momentum = CoM velocity × mass
+      const targetMomentum = frameIsCoMSetting
         ? new THREE.Vector3(0, 0, 0)  // CoM frame
         : comVel.clone().multiplyScalar(totalSystemMass);  // Lab frame
       
@@ -782,11 +797,11 @@ export default function AdvancedExplosionSimulator() {
       
       // Debug: Log first chunk velocity to verify
       if (explosionChunks.length > 0) {
-        console.log('Lock Camera (CoM frame):', lockCameraOnExplosion);
+        console.log('Frame is CoM:', frameIsCoMSetting);
         console.log('CoM Velocity:', comVel.x, comVel.y, comVel.z);
         console.log('Momentum Correction:', momentumCorrection.x, momentumCorrection.y, momentumCorrection.z);
         console.log('First chunk velocity:', explosionChunks[0].velocity.x, explosionChunks[0].velocity.y, explosionChunks[0].velocity.z);
-        if (lockCameraOnExplosion) {
+        if (frameIsCoMSetting) {
           console.log('→ Staying in CoM frame (no boost)');
         } else {
           console.log('→ Lab frame with CoM boost of', comVel.x, 'm/s');
@@ -831,6 +846,7 @@ export default function AdvancedExplosionSimulator() {
       if (e.button === 0) { // Left click
         isMouseDragging = true;
         hasManuallyMovedCamera = true;
+        setFollowCameraStatus(false);
         previousMousePosition = { x: e.clientX, y: e.clientY };
       }
     };
@@ -869,9 +885,10 @@ export default function AdvancedExplosionSimulator() {
 
     const onWheel = (e) => {
       e.preventDefault();
-      
+
       hasManuallyMovedCamera = true;
-      
+      setFollowCameraStatus(false);
+
       // Zoom in/out with mouse wheel
       const zoomSpeed = 0.001;
       const delta = e.deltaY;
@@ -889,7 +906,8 @@ export default function AdvancedExplosionSimulator() {
 
     const onTouchStart = (e) => {
       hasManuallyMovedCamera = true;
-      
+      setFollowCameraStatus(false);
+
       if (e.touches.length === 2) {
         // Pinch zoom start
         touchStartDistance = getTouchDistance(e.touches);
@@ -1031,10 +1049,16 @@ export default function AdvancedExplosionSimulator() {
       }
 
       // Update camera to follow CoM (only if not manually controlled)
-      if (!hasManuallyMovedCamera && !isMouseDragging) {
+      if (
+        followCOMCamera &&
+        !hasManuallyMovedCamera &&
+        !isMouseDragging
+      ) {
         const targetPos = centerOfMass.clone().add(new THREE.Vector3(0, 5, cameraDistance));
         camera.position.lerp(targetPos, delta * 2);
         camera.lookAt(centerOfMass);
+      } else {
+        // In lab frame or after manual input, keep camera in world coordinates.
       }
 
       // Smooth zoom interpolation
@@ -1095,6 +1119,7 @@ export default function AdvancedExplosionSimulator() {
       targetCameraDistance = 30;
       camera.position.set(0, 0, 30);
       camera.lookAt(centerOfMass);
+      setFollowCameraStatus(followCOMCamera && !hasManuallyMovedCamera);
     };
 
     const handleResetCoM = () => {
@@ -1116,7 +1141,9 @@ export default function AdvancedExplosionSimulator() {
     };
 
     const handleCameraLockChange = (shouldLock) => {
-      lockCameraOnExplosion = shouldLock;
+      frameIsCoMSetting = shouldLock;
+      followCOMCamera = shouldLock;
+      setFollowCameraStatus(followCOMCamera && !hasManuallyMovedCamera);
     };
 
     // Expose functions to React
@@ -1208,9 +1235,10 @@ export default function AdvancedExplosionSimulator() {
         {isExploded && (
           <div className="mb-3 p-2 bg-blue-900 bg-opacity-50 rounded border border-blue-500">
             <p className="text-xs font-bold text-blue-300">DEBUG INFO:</p>
-            <p className="text-xs">Reference Frame: {lockCameraOnExplosion ? 'CoM' : 'Lab'}</p>
-            <p className="text-xs">CoM Velocity: {comVelocity.x} m/s (X-axis)</p>
-            <p className="text-xs">Boost Applied: {lockCameraOnExplosion ? 'No' : 'Yes'}</p>
+            <p className="text-xs">Physical Frame: {frameIsCoM ? 'CoM (total p = 0)' : 'Lab (CoM boosted)'}</p>
+            <p className="text-xs">CoM Bulk Velocity: {comVelocity.x} m/s (X-axis)</p>
+            <p className="text-xs">Camera Follows CoM: {followCameraStatus ? 'Yes' : 'No (world frame)'}</p>
+            <p className="text-xs">Gas thermal RMS ≈ {(50 * explosionSpeed).toFixed(0)} m/s</p>
           </div>
         )}
         
@@ -1266,14 +1294,14 @@ export default function AdvancedExplosionSimulator() {
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={lockCameraOnExplosion}
-              onChange={(e) => setLockCameraOnExplosion(e.target.checked)}
+              checked={frameIsCoM}
+              onChange={(e) => setFrameIsCoM(e.target.checked)}
               className="w-4 h-4"
             />
             <span className="font-semibold">CoM Reference Frame</span>
           </label>
           <p className="text-xs text-gray-400 mt-1">
-            {lockCameraOnExplosion ? '📍 Explosion in CoM frame (no boost, symmetrical)' : '🚀 Lab frame with CoM boost (see motion)'}
+            {frameIsCoM ? '📍 CoM frame: total momentum zero, camera rides CoM' : '🚀 Lab frame: CoM boosted, camera stays in world frame'}
           </p>
         </div>
 
@@ -1344,6 +1372,9 @@ export default function AdvancedExplosionSimulator() {
           />
           <p className="text-xs text-gray-400 mt-1">
             Temperature parameter for velocity distribution
+          </p>
+          <p className="text-xs text-gray-400">
+            Gas thermal RMS ≈ {(50 * explosionSpeed).toFixed(0)} m/s
           </p>
         </div>
 
