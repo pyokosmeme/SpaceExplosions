@@ -1534,9 +1534,9 @@ export default function AdvancedExplosionSimulator() {
               </div>
               <input
                 type="range"
-                min="0.05"
-                max="3"
-                step="0.05"
+                min="0.005"
+                max="2"
+                step="0.005"
                 value={timeScale}
                 onChange={(e) => applyTimeScale(e.target.value)}
                 className="w-full"
