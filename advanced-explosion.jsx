@@ -591,7 +591,7 @@ export default function AdvancedExplosionSimulator() {
     let isMouseDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
     let cameraDistance = 30;
-    let targetCameraDistance = 30;
+    let targetCameraDistance = 100;
     let touchStartDistance = 0;
     let hasManuallyMovedCamera = false;
     let frameIsCoMSetting = frameIsCoM;
