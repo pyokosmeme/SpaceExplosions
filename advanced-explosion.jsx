@@ -1534,7 +1534,7 @@ export default function AdvancedExplosionSimulator() {
               </div>
               <input
                 type="range"
-                min="0.25"
+                min="0.001"
                 max="3"
                 step="0.05"
                 value={timeScale}
