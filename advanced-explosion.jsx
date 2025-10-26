@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { clampTimeScale, computeSimulationDelta, resolveTimeStep } from './simulation-utils.js';
+import { clampTimeScale, computeSimulationDelta } from './simulation-utils.js';
 
 const PHYS_SCALE = 14.43; // m/s per current sim velocity unit
 
@@ -75,32 +75,51 @@ export default function AdvancedExplosionSimulator() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     mountRef.current.appendChild(renderer.domElement);
 
+    const createStarfieldTexture = () => {
+      const size = 1024;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      const gradient = ctx.createRadialGradient(
+        size / 2,
+        size / 2,
+        size * 0.1,
+        size / 2,
+        size / 2,
+        size / 2
+      );
+      gradient.addColorStop(0, '#04040f');
+      gradient.addColorStop(1, '#000000');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+
+      const starCount = 2000;
+      for (let i = 0; i < starCount; i++) {
+        const x = Math.random() * size;
+        const y = Math.random() * size;
+        const brightness = Math.random();
+        const radius = Math.random() * 1.2 + 0.2;
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(${200 + brightness * 55}, ${200 + brightness * 55}, 255, ${0.5 + brightness * 0.5})`;
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      return texture;
+    };
+
+    scene.background = createStarfieldTexture();
+
     // Lighting
     const ambientLight = new THREE.AmbientLight(0x404040, 2);
     scene.add(ambientLight);
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
     directionalLight.position.set(5, 5, 5);
     scene.add(directionalLight);
-
-    // Starfield
-    const starsGeometry = new THREE.BufferGeometry();
-    const starsMaterial = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: 0.5,
-    });
-    const starsVertices = [];
-    for (let i = 0; i < 3000; i++) {
-      const x = (Math.random() - 0.5) * 500;
-      const y = (Math.random() - 0.5) * 500;
-      const z = (Math.random() - 0.5) * 500;
-      starsVertices.push(x, y, z);
-    }
-    starsGeometry.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(starsVertices, 3)
-    );
-    const starField = new THREE.Points(starsGeometry, starsMaterial);
-    scene.add(starField);
 
     // Grid for reference
     const gridHelper = new THREE.GridHelper(50, 50, 0x444444, 0x222222);
@@ -1041,11 +1060,7 @@ export default function AdvancedExplosionSimulator() {
         timeScaleRef.current,
         isPlayingRef.current
       );
-      const lerpDelta = resolveTimeStep(
-        isPlayingRef.current,
-        simulationDelta,
-        rawDelta
-      );
+      const cameraLerpDelta = Math.min(rawDelta, 0.1);
 
       // Update center of mass
       if (explosionChunks.length > 0) {
@@ -1106,14 +1121,14 @@ export default function AdvancedExplosionSimulator() {
         !isMouseDragging
       ) {
         const targetPos = centerOfMass.clone().add(new THREE.Vector3(0, 5, cameraDistance));
-        camera.position.lerp(targetPos, lerpDelta * 2);
+        camera.position.lerp(targetPos, cameraLerpDelta * 2);
         camera.lookAt(centerOfMass);
       } else {
         // In lab frame or after manual input, keep camera in world coordinates.
       }
 
       // Smooth zoom interpolation
-      cameraDistance += (targetCameraDistance - cameraDistance) * lerpDelta * 8;
+      cameraDistance += (targetCameraDistance - cameraDistance) * cameraLerpDelta * 8;
       
       // Update camera distance while maintaining direction (only if manually moved)
       if (hasManuallyMovedCamera && Math.abs(cameraDistance - targetCameraDistance) > 0.01) {
@@ -1235,7 +1250,10 @@ export default function AdvancedExplosionSimulator() {
       if (velocityArrow) {
         scene.remove(velocityArrow);
       }
-      
+      if (scene.background && typeof scene.background.dispose === 'function') {
+        scene.background.dispose();
+      }
+
       mountRef.current?.removeChild(renderer.domElement);
       renderer.dispose();
     };
@@ -1282,16 +1300,6 @@ export default function AdvancedExplosionSimulator() {
       {/* Control Panel */}
       <div className="absolute top-4 left-4 bg-gray-900 bg-opacity-90 text-white p-4 rounded-lg shadow-lg font-mono text-sm max-w-md">
         <h1 className="text-xl font-bold mb-3 text-blue-400">Physics-Based Explosion Simulator</h1>
-        
-        {isExploded && (
-          <div className="mb-3 p-2 bg-blue-900 bg-opacity-50 rounded border border-blue-500">
-            <p className="text-xs font-bold text-blue-300">DEBUG INFO:</p>
-            <p className="text-xs">Physical Frame: {frameIsCoM ? 'CoM (total p = 0)' : 'Lab (CoM boosted)'}</p>
-            <p className="text-xs">CoM Bulk Velocity: {comVelocity.x} m/s (X-axis)</p>
-            <p className="text-xs">Camera Follows CoM: {followCameraStatus ? 'Yes' : 'No (world frame)'}</p>
-            <p className="text-xs">Gas thermal RMS ≈ {(50 * explosionSpeed).toFixed(0)} m/s</p>
-          </div>
-        )}
         
         <div className="mb-3">
           <label className="block mb-1 font-semibold">Shape:</label>
