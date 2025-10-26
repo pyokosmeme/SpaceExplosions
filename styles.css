@@ -61,10 +61,110 @@ body {
 .w-full { width: 100%; }
 .w-4 { width: 1rem; }
 .h-full { height: 100%; }
-.h-screen { min-height: 100vh; }
+.h-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
 .h-4 { height: 1rem; }
 .max-w-md { max-width: 28rem; }
 .max-w-xl { max-width: 36rem; }
+
+.control-panel {
+  width: min(90vw, 22rem);
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  padding-right: 1.25rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.control-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.control-panel::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+
+.time-controls {
+  padding-bottom: 0.75rem;
+}
+
+.time-controls .backdrop-blur {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+input[type='range'] {
+  accent-color: #3b82f6;
+  height: 0.5rem;
+  border-radius: 9999px;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+button,
+input,
+label {
+  touch-action: manipulation;
+}
+
+@media (max-width: 768px) {
+  .control-panel {
+    top: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100vw - 2.5rem);
+    max-height: calc(60vh - env(safe-area-inset-bottom));
+    padding: 1rem;
+    padding-right: 1rem;
+    bottom: calc(env(safe-area-inset-bottom) + 7.5rem);
+  }
+
+  .control-panel h1 {
+    font-size: 1.125rem;
+  }
+
+  .control-panel .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .control-panel button {
+    font-size: 0.75rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .control-panel input[type='number'] {
+    font-size: 0.9rem;
+  }
+
+  .time-controls {
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100vw - 1.5rem);
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    bottom: calc(env(safe-area-inset-bottom) + 1rem);
+  }
+
+  .time-controls .backdrop-blur {
+    padding: 0.75rem;
+  }
+
+  .time-controls button {
+    font-size: 0.875rem;
+  }
+}
 
 .top-4 { top: 1rem; }
 .left-4 { left: 1rem; }

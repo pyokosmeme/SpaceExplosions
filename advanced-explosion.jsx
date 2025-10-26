@@ -1298,7 +1298,7 @@ export default function AdvancedExplosionSimulator() {
       <div ref={mountRef} className="w-full h-full" />
       
       {/* Control Panel */}
-      <div className="absolute top-4 left-4 bg-gray-900 bg-opacity-90 text-white p-4 rounded-lg shadow-lg font-mono text-sm max-w-md">
+      <div className="absolute top-4 left-4 bg-gray-900 bg-opacity-90 text-white p-4 rounded-lg shadow-lg font-mono text-sm max-w-md control-panel">
         <h1 className="text-xl font-bold mb-3 text-blue-400">Physics-Based Explosion Simulator</h1>
         
         <div className="mb-3">
@@ -1523,7 +1523,7 @@ export default function AdvancedExplosionSimulator() {
       </div>
 
       {/* Time Controls */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-full max-w-xl px-4">
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-full max-w-xl px-4 time-controls">
         <div className="bg-gray-900/80 text-white px-4 py-3 rounded-lg shadow-lg backdrop-blur">
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <button
